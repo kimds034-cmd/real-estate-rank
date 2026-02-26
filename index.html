@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>수도권 아파트 거시 변수 랭킹</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>수도권 아파트 거시 충격 시뮬레이터 (MVP)</h1>
+      <p class="disclaimer">본 결과는 투자 자문이 아닌 참고 지표입니다.</p>
+    </header>
+
+    <section class="controls card">
+      <h2>시뮬레이터 변수</h2>
+      <div class="control-grid">
+        <label>
+          전세기대수익률 (%)
+          <input id="rateSlider" type="range" min="1.5" max="5.5" step="0.1" value="3.5" />
+          <span id="rateValue">3.5%</span>
+          <small id="rateHint">실제 연동: 2년 단기국채 수익률 (기준 3.5%)</small>
+        </label>
+
+        <label>
+          전세대출 규제
+          <select id="loanRegulation">
+            <option value="relaxed">완화</option>
+            <option value="neutral" selected>중립</option>
+            <option value="tight">강화</option>
+          </select>
+        </label>
+
+        <label>
+          월세 전환율
+          <select id="rentConversion">
+            <option value="0.9">낮음 (0.9)</option>
+            <option value="1" selected>중립 (1.0)</option>
+            <option value="1.1">높음 (1.1)</option>
+          </select>
+        </label>
+
+        <label>
+          DSR 규제
+          <select id="dsrLevel">
+            <option value="relaxed">완화</option>
+            <option value="neutral" selected>중립</option>
+            <option value="tight">강화</option>
+          </select>
+        </label>
+
+        <label>
+          Price Basis (산식 가격 기준)
+          <select id="priceBasis">
+            <option value="recent_trade" selected>최근 실거래가</option>
+            <option value="registered">등기/기준 가격</option>
+            <option value="ask">호가</option>
+          </select>
+        </label>
+
+
+        <label>
+          투자금액 (만원)
+          <input id="investmentAmount" type="number" min="10000" step="1000" value="300000" />
+        </label>
+
+        <label>
+          실거주 비교 기준
+          <select id="residenceBasis">
+            <option value="better" selected>유리한 쪽(전세/월세)</option>
+            <option value="jeonse">전세 기회비용</option>
+            <option value="rent">연 월세 비용</option>
+          </select>
+        </label>
+
+        <label>
+          괴리 표시 모드
+          <select id="diffMode">
+            <option value="amount" selected>금액</option>
+            <option value="percent">퍼센트</option>
+          </select>
+        </label>
+
+
+        <label>
+          랭킹 그룹 기준
+          <select id="groupBy">
+            <option value="none" selected>전체</option>
+            <option value="district">구(권역)</option>
+            <option value="dong">동</option>
+            <option value="price_tier">가격대</option>
+          </select>
+        </label>
+
+
+        <label>
+          구 필터 (복수 선택)
+          <select id="districtFilter" multiple size="4"></select>
+          <small>선택한 구 안에서만 정렬/등수 계산</small>
+        </label>
+
+
+        <label>
+          실시간 업데이트
+          <select id="realtimeToggle">
+            <option value="off" selected>꺼짐</option>
+            <option value="on">켜기</option>
+          </select>
+        </label>
+
+        <label>
+          업데이트 주기
+          <select id="refreshInterval">
+            <option value="10">10초</option>
+            <option value="20" selected>20초</option>
+            <option value="30">30초</option>
+            <option value="60">60초</option>
+          </select>
+        </label>
+
+        <div class="live-tools">
+          <button id="refreshNow" type="button">지금 새로고침</button>
+          <small id="liveStatus">실시간 업데이트: 대기</small>
+          <small id="lastUpdated">마지막 업데이트: -</small>
+        </div>
+      </div>
+    </section>
+
+    <main class="layout">
+      <section class="card">
+        <h2>단지 랭킹 (Premium Preview)</h2>
+        <div id="apartmentRanking" class="ranking-list"></div>
+      </section>
+
+      <aside class="card" id="detailPanel">
+        <h2>단지 상세</h2>
+        <p>좌측 랭킹에서 단지를 선택하세요.</p>
+      </aside>
+    </main>
+
+    <section class="layout">
+      <section class="card">
+        <h2>구(권역) 랭킹 (Free)</h2>
+        <div id="districtRanking" class="compact-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>가격대 랭킹 (Free)</h2>
+        <div id="tierRanking" class="compact-list"></div>
+      </section>
+    </section>
+
+    <script src="app.js"></script>
+  </body>
+</html>
