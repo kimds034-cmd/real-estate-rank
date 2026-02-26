@@ -17,7 +17,7 @@ const state = {
   lastUpdated: null,
 };
 
-const apartments = [
+const baseApartments = [
   { name: "래미안 원베일리", district: "서초구", dong: "반포동", price_registered: 310000, price_trade_recent: 345000, price_ask: 362000, jeonse: 175000, rent: 450, base_score: 95, rate_sensitivity: 0.9, leverage_ratio: 0.55, jeonse_dependency: 0.45, policy_exposure: 0.6, price_tier: "고가(30억+)" },
   { name: "아크로리버파크", district: "서초구", dong: "반포동", price_registered: 295000, price_trade_recent: 332000, price_ask: 350000, jeonse: 170000, rent: 430, base_score: 94, rate_sensitivity: 0.85, leverage_ratio: 0.5, jeonse_dependency: 0.4, policy_exposure: 0.62, price_tier: "고가(30억+)" },
   { name: "헬리오시티", district: "송파구", dong: "잠실동", price_registered: 210000, price_trade_recent: 235000, price_ask: 248000, jeonse: 118000, rent: 300, base_score: 88, rate_sensitivity: 1.0, leverage_ratio: 0.7, jeonse_dependency: 0.6, policy_exposure: 0.5, price_tier: "중고가(15~30억)" },
@@ -40,6 +40,25 @@ const apartments = [
   { name: "분당 정든마을", district: "성남 분당구", dong: "정자동", price_registered: 125000, price_trade_recent: 140000, price_ask: 149000, jeonse: 76000, rent: 185, base_score: 77, rate_sensitivity: 1.18, leverage_ratio: 0.81, jeonse_dependency: 0.7, policy_exposure: 0.41, price_tier: "중가(10~15억)" },
 ];
 
+const unitTemplates = [
+  { unit_area: 59, unit_weight: 0.92 },
+  { unit_area: 84, unit_weight: 1.0 },
+  { unit_area: 114, unit_weight: 1.12 },
+];
+
+const apartments = baseApartments.flatMap((apt) =>
+  unitTemplates.map((unit) => ({
+    ...apt,
+    unit_area: unit.unit_area,
+    unit_label: `${unit.unit_area}㎡`,
+    price_registered: Math.round(apt.price_registered * unit.unit_weight),
+    price_trade_recent: Math.round(apt.price_trade_recent * unit.unit_weight),
+    price_ask: Math.round(apt.price_ask * unit.unit_weight),
+    jeonse: Math.round(apt.jeonse * unit.unit_weight),
+    rent: Math.round(apt.rent * unit.unit_weight),
+  }))
+);
+
 const loanRegulationCoeff = { relaxed: 0.9, neutral: 1, tight: 1.2 };
 const dsrCoeff = { relaxed: 0.9, neutral: 1.0, tight: 1.2 };
 const mobilityCoeff = {
@@ -53,7 +72,7 @@ const mobilityCoeff = {
 const registeredPriceRankMap = new Map(
   [...apartments]
     .sort((a, b) => b.price_registered - a.price_registered)
-    .map((apt, idx) => [apt.name, idx + 1])
+    .map((apt, idx) => [`${apt.name}-${apt.unit_area ?? "base"}`, idx + 1])
 );
 
 const availableDistricts = [...new Set(apartments.map((apt) => apt.district))].sort((a, b) => a.localeCompare(b, "ko"));
@@ -226,7 +245,7 @@ function computeScores() {
       ...x,
       finalScore: max === min ? 50 : ((x.rawScore - min) / (max - min)) * 100,
     }))
-    .sort((a, b) => b.finalScore - a.finalScore);
+    .sort(scoreComparator);
 }
 
 
@@ -234,7 +253,15 @@ function groupLabel(key, value) {
   if (key === "district") return `구: ${value}`;
   if (key === "dong") return `동: ${value}`;
   if (key === "price_tier") return `가격대: ${value}`;
+  if (key === "unit_area") return `평형: ${value}㎡`;
   return "전체";
+}
+
+
+function scoreComparator(a, b) {
+  if (b.finalScore !== a.finalScore) return b.finalScore - a.finalScore;
+  if (b.price_registered !== a.price_registered) return b.price_registered - a.price_registered;
+  return a.name.localeCompare(b.name, "ko");
 }
 
 function renderGroupedRanking(ranked, groupBy) {
@@ -249,7 +276,7 @@ function renderGroupedRanking(ranked, groupBy) {
   });
 
   Object.entries(groups)
-    .sort((a, b) => b[1][0].finalScore - a[1][0].finalScore)
+    .sort((a, b) => scoreComparator(a[1][0], b[1][0]))
     .forEach(([groupName, list]) => {
       const section = document.createElement("section");
       section.className = "group-section";
@@ -263,10 +290,10 @@ function renderGroupedRanking(ranked, groupBy) {
 
         row.innerHTML = `
           <div class="row-top">
-            <div class="rank-title">${groupLabel(groupBy, groupName)} #${idx + 1} · ${apt.name}</div>
-            <div><div class="score">${apt.finalScore.toFixed(1)}</div><div class="sub-rank">등기순위 #${registeredPriceRankMap.get(apt.name)}</div></div>
+            <div class="rank-title">${groupLabel(groupBy, groupName)} #${idx + 1} · ${apt.name} ${apt.unit_label}</div>
+            <div><div class="score">${apt.finalScore.toFixed(1)}</div><div class="sub-rank">등기순위 #${registeredPriceRankMap.get(`${apt.name}-${apt.unit_area}`)}</div></div>
           </div>
-          <div class="price-line">${apt.district} ${apt.dong} · 등기 ${toEokMan(apt.price_registered)} / 실거래 ${toEokMan(apt.price_trade_recent)} / 호가 ${toEokMan(apt.price_ask)}</div>
+          <div class="price-line">${apt.district} ${apt.dong} · ${apt.unit_label} · 등기 ${toEokMan(apt.price_registered)} / 실거래 ${toEokMan(apt.price_trade_recent)} / 호가 ${toEokMan(apt.price_ask)}</div>
           <div class="diff-line ${askTradeDiffClass}">${diffText("호가", apt.price_ask, apt.price_trade_recent)} (실거래 대비)</div>
           <div class="diff-line ${tradeRegDiffClass}">${diffText("실거래", apt.price_trade_recent, apt.price_registered)} (등기 대비)</div>
           <div class="diff-line">손실회피 필요상승: ${toEokMan(Math.round(apt.breakEvenRequiredGain))} (${apt.breakEvenRequiredRisePct.toFixed(2)}%)</div>
@@ -316,7 +343,7 @@ function renderRankings() {
 
     row.innerHTML = `
       <div class="row-top">
-        <div class="rank-title">#${registeredPriceRankMap.get(apt.name)} ${apt.name} · ${apt.district}</div>
+        <div class="rank-title">#${registeredPriceRankMap.get(`${apt.name}-${apt.unit_area}`)} ${apt.name} ${apt.unit_label} · ${apt.district}</div>
         <div><div class="score">${apt.finalScore.toFixed(1)}</div><div class="sub-rank">시뮬레이션 순위 #${idx + 1}</div></div>
       </div>
       <div class="price-line">등기 ${toEokMan(apt.price_registered)} / 실거래 ${toEokMan(apt.price_trade_recent)} / 호가 ${toEokMan(apt.price_ask)}</div>
@@ -400,9 +427,9 @@ function renderDetail(apt, ranked) {
 
   detail.innerHTML = `
     <h2>${apt.name}</h2>
-    <p>${apt.district} ${apt.dong} · ${apt.price_tier}</p>
+    <p>${apt.district} ${apt.dong} · ${apt.unit_label} · ${apt.price_tier}</p>
     <p><strong>Final Score ${apt.finalScore.toFixed(1)}</strong> · Price Basis: ${state.priceBasis}</p>
-    <p class="detail-meta">등기 매매가 순위 #${registeredPriceRankMap.get(apt.name)} / 시뮬레이션 순위 #${ranked.findIndex((x) => x.name === apt.name) + 1}</p>
+    <p class="detail-meta">등기 매매가 순위 #${registeredPriceRankMap.get(`${apt.name}-${apt.unit_area}`)} / 시뮬레이션 순위 #${ranked.findIndex((x) => x.name === apt.name) + 1}</p>
     <p class="detail-meta">투자금액×국채금리 ${toEokMan(Math.round(apt.treasuryIncome))} vs 실거주(전세기회비용 ${toEokMan(Math.round(apt.jeonseOpportunityCost))} / 월세연환산 ${toEokMan(Math.round(apt.annualRentCost))}) → 비교수익률 ${apt.residenceYieldRatio.toFixed(2)}x</p>
     <p class="detail-meta">손실회피 필요상승액 = 실거주비용 ${toEokMan(Math.round(apt.residenceCostBasis))} + 전세금갭(${toEokMan(Math.round(apt.jeonseGapInvestment))})×금리(${toEokMan(Math.round(apt.gapInterestCost))}) = ${toEokMan(Math.round(apt.breakEvenRequiredGain))} (${apt.breakEvenRequiredRisePct.toFixed(2)}%)</p>
 
