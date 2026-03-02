@@ -167,6 +167,34 @@ function toEokMan(priceInManwon) {
   return `${eok}억 ${man.toLocaleString()}만`;
 }
 
+function buildRealProfitRiseRows(groupedApartments) {
+  const inflationRate = 0.02;
+  const holdingYears = [1, 3, 5];
+
+  return groupedApartments
+    .sort((a, b) => a.unit_area - b.unit_area)
+    .map((unit) => {
+      const yearlyRows = holdingYears.map((years) => {
+        const inflationBuffer = unit.selected_price * (Math.pow(1 + inflationRate, years) - 1);
+        const totalRequiredGain = unit.breakEvenRequiredGain * years + inflationBuffer;
+        const requiredSellPrice = unit.selected_price + totalRequiredGain;
+        const annualRiseAmount = totalRequiredGain / years;
+        const annualRisePct = (Math.pow(requiredSellPrice / Math.max(unit.selected_price, 1), 1 / years) - 1) * 100;
+        return {
+          years,
+          annualRiseAmount,
+          annualRisePct,
+        };
+      });
+
+      return {
+        unit_label: unit.unit_label,
+        selected_price: unit.selected_price,
+        yearlyRows,
+      };
+    });
+}
+
 function diffText(label, current, base) {
   const amount = current - base;
   const sign = amount >= 0 ? "+" : "-";
@@ -425,6 +453,9 @@ function renderDetail(apt, ranked) {
     },
   ];
 
+  const sameComplexUnits = ranked.filter((candidate) => candidate.name === apt.name);
+  const annualRiseRows = buildRealProfitRiseRows(sameComplexUnits);
+
   detail.innerHTML = `
     <h2>${apt.name}</h2>
     <p>${apt.district} ${apt.dong} · ${apt.unit_label} · ${apt.price_tier}</p>
@@ -446,6 +477,36 @@ function renderDetail(apt, ranked) {
           .map(
             (row) => `<tr><td>${row.name}</td><td>${row.amount >= 0 ? "+" : "-"}${toEokMan(Math.abs(row.amount))}</td><td>${row.pct >= 0 ? "+" : "-"}${Math.abs(row.pct).toFixed(2)}%</td></tr>`
           )
+          .join("")}
+      </tbody>
+    </table>
+
+    <h3>평형별 실질 수익(연 2% 물가 반영) 달성 필요 연간 상승가격</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>평형</th>
+          <th>기준가격</th>
+          <th>1년 보유</th>
+          <th>3년 보유(연평균)</th>
+          <th>5년 보유(연평균)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${annualRiseRows
+          .map((row) => {
+            const oneYear = row.yearlyRows.find((year) => year.years === 1);
+            const threeYear = row.yearlyRows.find((year) => year.years === 3);
+            const fiveYear = row.yearlyRows.find((year) => year.years === 5);
+
+            return `<tr>
+              <td>${row.unit_label}</td>
+              <td>${toEokMan(Math.round(row.selected_price))}</td>
+              <td>${toEokMan(Math.round(oneYear.annualRiseAmount))} (${oneYear.annualRisePct.toFixed(2)}%)</td>
+              <td>${toEokMan(Math.round(threeYear.annualRiseAmount))} (${threeYear.annualRisePct.toFixed(2)}%)</td>
+              <td>${toEokMan(Math.round(fiveYear.annualRiseAmount))} (${fiveYear.annualRisePct.toFixed(2)}%)</td>
+            </tr>`;
+          })
           .join("")}
       </tbody>
     </table>
